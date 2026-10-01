@@ -27,5 +27,3 @@ class Connection:
         return json.loads(
             base64.urlsafe_b64decode(payload)
         )
-
-        print(self.decode_jwt_payload(token))
