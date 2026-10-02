@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nginx-proxy-manager-cli"
+dynamic = ["version"]
+description = "Command line client for Nginx Proxy Manager"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["requests>=2.25"]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Systems Administration",
+]
+
+[project.scripts]
+npm-cli = "npm_cli.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "npm_cli.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["npm_cli*"]
