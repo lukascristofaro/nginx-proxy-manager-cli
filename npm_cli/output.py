@@ -6,6 +6,8 @@ import json
 import sys
 from typing import Any, Callable, List, Sequence, Tuple
 
+from .client import NpmError
+
 Column = Tuple[str, Callable[[dict], Any]]
 
 
@@ -38,6 +40,15 @@ def render_table(rows: Sequence[dict], columns: Sequence[Column]) -> str:
 
 def print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def write_json(path: str, data: Any) -> None:
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+    except OSError as exc:
+        raise NpmError(f"cannot write {path}: {exc.strerror}")
 
 
 def info(message: str) -> None:

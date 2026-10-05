@@ -46,6 +46,8 @@ Global options work anywhere on the command line: `--json` (raw JSON output), `-
 ```sh
 npm-cli proxy list
 npm-cli proxy list --search example
+npm-cli proxy list -o proxies.json   # save the full list as a JSON file
+npm-cli proxy import proxies.json    # create hosts from a JSON file (object or list)
 npm-cli proxy show 3
 
 # Create, requesting a Let's Encrypt certificate and forcing HTTPS

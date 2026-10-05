@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from typing import Sequence
 
 from ..client import NpmError
-from ..output import Column
+from ..output import Column, info
 from ._common import (Context, add_crud_commands, bool_flag, build_payload, enabled_status,
                       group, leaf, text_or_file)
 from .certificates import request_letsencrypt
@@ -179,6 +180,41 @@ def make_update(attr: str, label: str, fields: Sequence[str], columns: Sequence[
     return handler
 
 
+def _read_entries(path: str) -> list:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except OSError as exc:
+        raise NpmError(f"cannot read {path}: {exc.strerror}")
+    except ValueError as exc:
+        raise NpmError(f"{path} is not valid JSON: {exc}")
+    entries = [data] if isinstance(data, dict) else data
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        raise NpmError(f"{path} must contain a JSON object or a list of objects.")
+    return entries
+
+
+def make_import(attr: str, label: str, fields: Sequence[str]):
+    def handler(ctx: Context, args) -> None:
+        entries = _read_entries(args.file)
+        failed = 0
+        for i, entry in enumerate(entries, 1):
+            # Keep only writable fields, so the output of `list -o` can be imported as is.
+            payload = {f: entry[f] for f in fields if entry.get(f) is not None}
+            payload["meta"] = {}
+            name = ", ".join(payload.get("domain_names") or []) or f"entry {i}"
+            try:
+                obj = getattr(ctx.client, attr).create(payload)
+            except NpmError as exc:
+                failed += 1
+                info(f"Failed to import {name}: {exc}")
+                continue
+            ctx.out.success(f"Created {label} #{obj.get('id')} ({name}).")
+        if failed:
+            raise NpmError(f"{failed} of {len(entries)} {label}(s) could not be imported.")
+    return handler
+
+
 HOST_TYPES = [
     # (command, aliases, client attribute, label, fields, columns, add_options, expand, help)
     ("proxy", ["proxy-host", "proxy-hosts"], "proxy_hosts", "proxy host",
@@ -204,3 +240,7 @@ def register(root) -> None:
                  f"update a {label} (only the given options change)", aliases=["edit"])
         p.add_argument("id", type=int)
         add_options(p, update=True)
+
+        p = leaf(sub, "import", make_import(attr, label, fields),
+                 f"create {label}s from a JSON file (an object or a list, e.g. from `list -o`)")
+        p.add_argument("file", help="JSON file to read")

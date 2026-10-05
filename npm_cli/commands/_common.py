@@ -9,7 +9,7 @@ from typing import Callable, Iterable, Optional, Sequence
 
 from .. import session
 from ..client import NpmClient, NpmError
-from ..output import Column, Output
+from ..output import Column, Output, info, write_json
 
 # Global options are accepted both before and after the sub-command
 # (`npm-cli --json proxy list` and `npm-cli proxy list --json`).
@@ -99,10 +99,15 @@ def add_crud_commands(sub, attr: str, label: str, columns: Sequence[Column],
 
     def do_list(ctx: Context, args) -> None:
         rows = resource(ctx).list(expand=expand, query=args.search)
-        ctx.out.table(rows, columns, empty=f"No {label}s found.")
+        if args.output:
+            write_json(args.output, rows)
+            info(f"Saved {len(rows)} {label}(s) to {args.output}.")
+        else:
+            ctx.out.table(rows, columns, empty=f"No {label}s found.")
 
     p = leaf(sub, "list", do_list, f"list {label}s", aliases=["ls"])
     p.add_argument("-s", "--search", help="only show entries matching this text")
+    p.add_argument("-o", "--output", metavar="FILE", help="save the list as JSON to FILE")
 
     def do_show(ctx: Context, args) -> None:
         ctx.out.detail(resource(ctx).get(args.id, expand=expand))

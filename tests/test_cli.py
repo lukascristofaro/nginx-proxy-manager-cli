@@ -126,6 +126,42 @@ class TestProxyHosts(CliTestCase):
             code, out, _ = self.run_cli(*argv)
             self.assertEqual(json.loads(out), [{"id": 1}])
 
+    def test_list_output_file(self):
+        hosts = [{"id": 1, "domain_names": ["a.example.com"]}]
+        self.routes[("GET", "/api/nginx/proxy-hosts")] = FakeResponse(body=hosts)
+        path = os.path.join(self.tmp.name, "proxies.json")
+        code, out, err = self.run_cli("proxy", "list", "-o", path)
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "")
+        self.assertIn("Saved 1 proxy host(s)", err)
+        with open(path, encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh), hosts)
+
+    def test_import_from_file(self):
+        self.routes[("POST", "/api/nginx/proxy-hosts")] = FakeResponse(body={"id": 9})
+        path = os.path.join(self.tmp.name, "proxies.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump([{"id": 1, "domain_names": ["a.com"], "forward_scheme": "http", "forward_host": "h",
+                        "forward_port": 80, "owner": {"id": 1}, "created_on": "2024-01-01"},
+                       {"domain_names": ["b.com"], "forward_scheme": "https", "forward_host": "h2",
+                        "forward_port": 443}], fh)
+        code, out, _ = self.run_cli("proxy", "import", path)
+        self.assertEqual(code, 0)
+        self.assertEqual(out.count("Created proxy host #9"), 2)
+        first = self.calls[0][2]["json"]
+        self.assertEqual(first, {"domain_names": ["a.com"], "forward_scheme": "http", "forward_host": "h",
+                                 "forward_port": 80, "meta": {}})
+        self.assertEqual(self.calls[1][2]["json"]["domain_names"], ["b.com"])
+
+    def test_import_continues_after_failure(self):
+        path = os.path.join(self.tmp.name, "proxies.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"domain_names": ["a.com"]}, fh)
+        code, _, err = self.run_cli("proxy", "import", path)
+        self.assertEqual(code, 1)
+        self.assertIn("Failed to import a.com", err)
+        self.assertIn("1 of 1 proxy host(s) could not be imported", err)
+
     def test_create_payload(self):
         self.routes[("POST", "/api/nginx/proxy-hosts")] = FakeResponse(body={"id": 7, "domain_names": ["a.com"]})
         code, out, _ = self.run_cli("proxy", "create", "-d", "a.com", "-d", "b.com",
